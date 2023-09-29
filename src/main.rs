@@ -1,75 +1,36 @@
+use gameboard::*;
+use std::io::{stdin, stdout, Write};
 use std::{thread, time::Duration};
+use termion::event::{Event, Key};
+use termion::input::TermRead;
+use termion::raw::{IntoRawMode, RawTerminal};
 
-#[derive(Debug)]
-pub struct BorderTypes {
-    pub horizontal: String,
-    pub vertical: String,
-    pub top_left: String,
-    pub top_right: String,
-    pub bottom_left: String,
-    pub bottom_right: String,
-}
-
-impl Default for BorderTypes {
-    fn default() -> Self {
-        BorderTypes {
-            horizontal: "─".into(),
-            vertical: "│".into(),
-            top_left: "╭".into(),
-            top_right: "╮".into(),
-            bottom_left: "╰".into(),
-            bottom_right: "╯".into(),
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct GameBoard {
-    pub border_types: BorderTypes,
-}
-
-impl GameBoard {
-    pub fn draw(&self, width: usize, height: usize) {
-        let horizontal_border = &self.border_types.horizontal;
-        let vertical_border = &self.border_types.vertical;
-        let top_left = &self.border_types.top_left;
-        let top_right = &self.border_types.top_right;
-        let bottom_left = &self.border_types.bottom_left;
-        let bottom_right = &self.border_types.bottom_right;
-
-        println!("{}", termion::clear::All);
-
-        // Draw top border
-        print!("{}", top_left);
-        print!("{}", horizontal_border.repeat(width));
-        println!("{}", top_right);
-
-        for _ in 0..height {
-            // Draw left border
-            print!("{}", vertical_border);
-
-            // Draw empty space inside the board
-            print!("{}", " ".repeat(width));
-
-            // Draw right border
-            println!("{}", vertical_border);
-        }
-
-        // Draw bottom border
-        print!("{}", bottom_left);
-        print!("{}", horizontal_border.repeat(width));
-        println!("{}", bottom_right);
-
-        println!("{}", termion::cursor::Goto(1, 1));
-    }
-}
+pub mod gameboard;
 
 fn main() {
-    let board = GameBoard::default();
-    let mut term_size = termion::terminal_size().unwrap();
-    term_size.0 -= 2;
-    term_size.1 -= 4;
+    let fps = 5;
 
-    board.draw(term_size.0.into(), term_size.1.into());
-    thread::sleep(Duration::from_millis(4000));
+    let mut stdout = RawTerminal::from(stdout().into_raw_mode().unwrap());
+
+    let board = GameBoard::default();
+    write!(stdout, "{}", termion::clear::All);
+
+    loop {
+        board.draw(&mut stdout);
+
+        handle_input();
+
+        thread::sleep(Duration::from_millis(1000 / fps));
+    }
+}
+
+fn handle_input() {
+    let stdin = stdin();
+    for c in stdin.events() {
+        let evt = c.unwrap();
+        match evt {
+            Event::Key(Key::Char('q')) => panic!("EXITED"),
+            _ => {}
+        }
+    }
 }
