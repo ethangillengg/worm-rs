@@ -1,5 +1,5 @@
 use gameboard::*;
-use std::io::{stdin, stdout, Write};
+use std::io::{stdin, stdout};
 use std::{thread, time::Duration};
 use termion::event::{Event, Key};
 use termion::input::TermRead;
@@ -9,14 +9,12 @@ pub mod gameboard;
 
 fn main() {
     let fps = 5;
-
-    let mut stdout = RawTerminal::from(stdout().into_raw_mode().unwrap());
+    let stdout = RawTerminal::from(stdout().into_raw_mode().unwrap());
 
     let board = GameBoard::default();
-    write!(stdout, "{}", termion::clear::All);
 
     loop {
-        board.draw(&mut stdout);
+        board.draw();
 
         handle_input();
 
@@ -29,7 +27,13 @@ fn handle_input() {
     for c in stdin.events() {
         let evt = c.unwrap();
         match evt {
-            Event::Key(Key::Char('q')) => panic!("EXITED"),
+            Event::Key(Key::Char('q')) => {
+                print!("{}", termion::cursor::Goto(1, 1));
+                print!("{}", termion::clear::All);
+                print!("{}", termion::cursor::Goto(1, 1));
+                print!("Thanks for playing!");
+                std::process::exit(1);
+            }
             _ => {}
         }
     }

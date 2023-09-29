@@ -1,7 +1,4 @@
-use std::io::{self, stdout, Write};
-use termion::cursor::{Down, Goto, Left, Up};
-
-use termion::raw::RawTerminal;
+use termion::cursor::{Down, Goto, Left};
 
 #[derive(Debug)]
 pub struct BorderTypes {
@@ -32,45 +29,40 @@ pub struct GameBoard {
 }
 
 impl GameBoard {
-    pub fn draw(&self, stdout: &mut RawTerminal<io::Stdout>) {
+    pub fn draw(&self) {
         let term_size = termion::terminal_size().unwrap();
         let width: usize = (term_size.0 - 2).into();
-        let height: usize = (term_size.1 - 3).into();
+        let height: usize = (term_size.1 - 1).into();
         let bt = &self.border_types;
 
         let next_line = format_args!("{}{}", Left(term_size.0), Down(1)).to_string();
 
         // Top Border
-        write!(stdout, "{}", Goto(1, 1)).unwrap();
-        writeln!(
-            stdout,
+        print!("{}", Goto(1, 1));
+        println!(
             "{}{}{}",
             bt.top_left,
             bt.horizontal.repeat(width),
             bt.top_right
-        )
-        .unwrap();
-        write!(stdout, "{}", Left(term_size.0)).unwrap();
+        );
+        print!("{}", Left(term_size.0));
 
         //Body
         for _ in 0..height {
-            write!(stdout, "{}", bt.vertical).unwrap();
-            write!(stdout, "{}", " ".repeat(width),).unwrap();
-            write!(stdout, "{}", bt.vertical).unwrap();
-            write!(stdout, "{}", next_line).unwrap();
+            print!("{}", bt.vertical);
+            print!("{}", " ".repeat(width));
+            print!("{}", bt.vertical);
+            print!("{}", next_line);
         }
 
         // Bottom Border
-        writeln!(
-            stdout,
+        print!(
             "{}{}{}",
             bt.bottom_left,
             bt.horizontal.repeat(width),
             bt.bottom_right
-        )
-        .unwrap();
-        write!(stdout, "{}", next_line).unwrap();
+        );
 
-        write!(stdout, "{}", Goto(5, 5)).unwrap();
+        println!("{}", Goto(1, 1));
     }
 }
