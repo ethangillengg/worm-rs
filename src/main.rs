@@ -1,40 +1,22 @@
-use gameboard::*;
-use std::io::{stdin, stdout};
-use std::{thread, time::Duration};
-use termion::event::{Event, Key};
-use termion::input::TermRead;
-use termion::raw::{IntoRawMode, RawTerminal};
+use std::io::stdout;
 
-pub mod gameboard;
+use termion::cursor::Hide;
+use termion::raw::IntoRawMode;
+use termion::screen::IntoAlternateScreen;
+use termion::{self, clear};
+
+pub mod entity;
+pub mod game;
 
 fn main() {
-    let fps = 5;
-    let stdout = RawTerminal::from(stdout().into_raw_mode().unwrap());
-
-    let board = GameBoard::default();
-
-    loop {
-        board.draw();
-
-        handle_input();
-
-        thread::sleep(Duration::from_millis(1000 / fps));
-    }
-}
-
-fn handle_input() {
-    let stdin = stdin();
-    for c in stdin.events() {
-        let evt = c.unwrap();
-        match evt {
-            Event::Key(Key::Char('q')) => {
-                print!("{}", termion::cursor::Goto(1, 1));
-                print!("{}", termion::clear::All);
-                print!("{}", termion::cursor::Goto(1, 1));
-                print!("Thanks for playing!");
-                std::process::exit(1);
-            }
-            _ => {}
-        }
-    }
+    // Set terminal to raw mode to allow reading stdin one key at a time
+    println!("{}{}", clear::All, Hide);
+    let mut stdout = stdout()
+        .lock()
+        .into_raw_mode()
+        .unwrap()
+        .into_alternate_screen()
+        .unwrap();
+    let mut game = game::Game::new();
+    game.start();
 }
