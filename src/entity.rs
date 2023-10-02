@@ -1,6 +1,9 @@
 use std::io::{stdout, Write};
 
-use termion::cursor::{Down, Goto, Left};
+use termion::{
+    color,
+    cursor::{Down, Goto, Left},
+};
 
 pub trait Entity {
     fn draw(&mut self);
@@ -23,8 +26,10 @@ pub trait Entity {
 #[derive(Debug)]
 pub struct Worm {
     pub segments: Vec<(u16, u16)>,
+    pub current_direction: MoveDirection,
 }
 
+#[derive(Debug)]
 pub enum MoveDirection {
     Up,
     Down,
@@ -32,15 +37,15 @@ pub enum MoveDirection {
     Right,
 }
 
-impl Default for Worm {
-    fn default() -> Self {
+impl Worm {
+    pub fn new(x: u16, y: u16, length: u16) -> Worm {
+        let segments: Vec<(u16, u16)> = (0..length).map(|i| (x - i, y)).collect();
         Worm {
-            segments: vec![(5, 5)],
+            segments,
+            current_direction: MoveDirection::Right,
         }
     }
-}
 
-impl Worm {
     pub fn length(&mut self) -> usize {
         self.segments.len()
     }
@@ -60,29 +65,32 @@ impl Worm {
         self.segments.push(new_seg);
     }
 
-    pub fn move_forward(&mut self, direction: MoveDirection) {
-        // for seg in &mut self.segments {
+    pub fn move_forward(&mut self) {
+        let new_segs = self.segments.clone();
         let head = self.segments.first_mut().unwrap();
 
-        match direction {
+        match self.current_direction {
             MoveDirection::Up => head.1 -= 1,
             MoveDirection::Down => head.1 += 1,
             MoveDirection::Left => head.0 -= 1,
             MoveDirection::Right => head.0 += 1,
         }
-        // }
+
+        for i in 1..self.segments.len() {
+            self.segments[i] = new_segs[i - 1];
+        }
     }
 }
 
 impl Entity for Worm {
     fn draw(&mut self) {
         // Top Border
+        write!(stdout(), "{}", color::Fg(color::Green)).unwrap();
         for pos in &mut self.segments {
             print!("{}", Goto(pos.0, pos.1));
-            print!("󱓻");
+            print!("◉");
         }
-        // self.pos.0 += 1;
-        // print!("{}", self.pos.0);
+        write!(stdout(), "{}", color::Fg(color::Reset)).unwrap();
 
         print!("{}Length:{}", Goto(2, 2), self.length());
         self.goto_origin();

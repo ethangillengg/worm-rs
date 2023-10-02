@@ -35,7 +35,7 @@ impl Default for Game {
                 height,
                 border_types: BorderTypes::default(),
             },
-            worm: Worm::default(),
+            worm: Worm::new(width / 2, height / 2, 4),
         }
     }
 }
@@ -59,23 +59,21 @@ impl Game {
     pub fn draw(&mut self) {
         self.board.draw();
         self.worm.draw();
+        self.worm.move_forward();
     }
 
     fn handle_input(&mut self) {
         let key = self.stdin_channel.try_recv().unwrap_or(Key::Null); //No input found
         match key {
-            // Exit if 'q' is pressed
             Key::Char('q') => {
                 print!("{}", Show);
                 stdout().flush().unwrap();
                 exit(0);
             }
-            Key::Char('w') => self.worm.move_forward(MoveDirection::Up),
-            Key::Char('a') => self.worm.move_forward(MoveDirection::Left),
-            Key::Char('s') => self.worm.move_forward(MoveDirection::Down),
-            Key::Char('d') => self.worm.move_forward(MoveDirection::Right),
-
-            // Else print the pressed key
+            Key::Char('w') => self.worm.current_direction = MoveDirection::Up,
+            Key::Char('a') => self.worm.current_direction = MoveDirection::Left,
+            Key::Char('s') => self.worm.current_direction = MoveDirection::Down,
+            Key::Char('d') => self.worm.current_direction = MoveDirection::Right,
             _ => {}
         }
     }
