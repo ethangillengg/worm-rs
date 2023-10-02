@@ -27,7 +27,7 @@ pub trait Entity {
 #[derive(Debug)]
 pub struct Worm {
     pub segments: Vec<(u16, u16)>,
-    pub current_direction: MoveDirection,
+    current_direction: MoveDirection,
 }
 
 #[derive(Debug)]
@@ -66,19 +66,38 @@ impl Worm {
         self.segments.push(new_seg);
     }
 
-    pub fn move_forward(&mut self) {
-        let new_segs = self.segments.clone();
-        let head = self.segments.first_mut().unwrap();
+    pub fn try_set_direction(&mut self, new_direction: MoveDirection) {
+        // Don't allow illegal moves
+        match (&self.current_direction, &new_direction) {
+            (
+                MoveDirection::Up | MoveDirection::Down,
+                MoveDirection::Left | MoveDirection::Right,
+            ) => {
+                self.current_direction = new_direction;
+            }
+            (
+                MoveDirection::Left | MoveDirection::Right,
+                MoveDirection::Up | MoveDirection::Down,
+            ) => {
+                self.current_direction = new_direction;
+            }
+            _ => {}
+        }
+    }
 
+    pub fn move_forward(&mut self) {
+        for i in (1..=self.segments.len() - 1).rev() {
+            let next_seg = self.segments[i - 1];
+            self.segments[i].0 = next_seg.0;
+            self.segments[i].1 = next_seg.1;
+        }
+
+        let head = self.segments.first_mut().unwrap();
         match self.current_direction {
             MoveDirection::Up => head.1 -= 1,
             MoveDirection::Down => head.1 += 1,
             MoveDirection::Left => head.0 -= 1,
             MoveDirection::Right => head.0 += 1,
-        }
-
-        for i in 1..self.segments.len() {
-            self.segments[i] = new_segs[i - 1];
         }
     }
 }

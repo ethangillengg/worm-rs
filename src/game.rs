@@ -80,16 +80,19 @@ impl Game {
                 stdout().flush().unwrap();
                 exit(0);
             }
-            Key::Char('w') => self.worm.current_direction = MoveDirection::Up,
-            Key::Char('a') => self.worm.current_direction = MoveDirection::Left,
-            Key::Char('s') => self.worm.current_direction = MoveDirection::Down,
-            Key::Char('d') => self.worm.current_direction = MoveDirection::Right,
+            // Key::Char('w') | Key::Char('s') => {}
+            // Key::Char('a') | Key::Char('d')  => {}
+            Key::Char('w') => self.worm.try_set_direction(MoveDirection::Up),
+            Key::Char('a') => self.worm.try_set_direction(MoveDirection::Left),
+            Key::Char('s') => self.worm.try_set_direction(MoveDirection::Down),
+            Key::Char('d') => self.worm.try_set_direction(MoveDirection::Right),
             _ => {}
         }
     }
 
     fn update_game_state(&mut self) {
         self.worm.move_forward();
+
         // Check if the worm's head is on top of a fruit
         if self.worm.segments[0] == self.fruits[0].pos {
             self.worm.grow();
