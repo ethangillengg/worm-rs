@@ -84,8 +84,7 @@ impl Worm {
 
 impl Entity for Worm {
     fn draw(&mut self) {
-        // Top Border
-        write!(stdout(), "{}", color::Fg(color::Green)).unwrap();
+        write!(stdout(), "{}", color::Fg(color::LightMagenta)).unwrap();
         for pos in &mut self.segments {
             print!("{}", Goto(pos.0, pos.1));
             print!("◉");
@@ -156,6 +155,20 @@ impl Entity for Board {
             bt.horizontal.repeat(self.width.into()),
             bt.bottom_right
         );
+        stdout().flush().unwrap();
+    }
+}
+
+pub struct Fruit {
+    pub pos: (u16, u16),
+}
+impl Entity for Fruit {
+    fn draw(&mut self) {
+        print!("{}", Goto(self.pos.0, self.pos.1));
+
+        write!(stdout(), "{}", color::Fg(color::Green)).unwrap();
+        print!("󰉛");
+        write!(stdout(), "{}", color::Fg(color::Reset)).unwrap();
         stdout().flush().unwrap();
     }
 }

@@ -4,9 +4,14 @@ use std::{
     sync::mpsc,
     thread, time,
 };
-use termion::{cursor::Show, event::Key, input::TermRead};
+use termion::{
+    clear,
+    cursor::{Goto, Show},
+    event::Key,
+    input::TermRead,
+};
 
-use crate::entity::{Board, BorderTypes, Entity, MoveDirection, Worm};
+use crate::entity::{Board, BorderTypes, Entity, Fruit, MoveDirection, Worm};
 
 pub struct Game {
     pub fps: u64,
@@ -16,6 +21,7 @@ pub struct Game {
     pub height: u16,
     pub board: Board,
     pub worm: Worm,
+    pub fruits: Vec<Fruit>,
 }
 
 impl Default for Game {
@@ -25,7 +31,7 @@ impl Default for Game {
         let height = term_size.1 - 2;
 
         Game {
-            fps: 20,
+            fps: 15,
             frame_count: 0,
             stdin_channel: spawn_stdin_channel(),
             width,
@@ -36,6 +42,7 @@ impl Default for Game {
                 border_types: BorderTypes::default(),
             },
             worm: Worm::new(width / 2, height / 2, 4),
+            fruits: vec![Fruit { pos: (5, 14) }],
         }
     }
 }
@@ -50,6 +57,7 @@ impl Game {
             // Read input (if any)
             self.draw();
             self.handle_input();
+            self.worm.move_forward();
             // If a key was pressed
             thread::sleep(time::Duration::from_millis(1000 / self.fps));
             self.frame_count += 1;
@@ -59,14 +67,16 @@ impl Game {
     pub fn draw(&mut self) {
         self.board.draw();
         self.worm.draw();
-        self.worm.move_forward();
+        for fruit in &mut self.fruits {
+            fruit.draw();
+        }
     }
 
     fn handle_input(&mut self) {
         let key = self.stdin_channel.try_recv().unwrap_or(Key::Null); //No input found
         match key {
             Key::Char('q') => {
-                print!("{}", Show);
+                print!("{}{}", Show, Goto(0, 0));
                 stdout().flush().unwrap();
                 exit(0);
             }
