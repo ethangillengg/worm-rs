@@ -30,7 +30,7 @@ impl Default for Game {
         let height = term_size.1 - 2;
 
         Game {
-            fps: 15,
+            fps: 20,
             frame_count: 0,
             stdin_channel: spawn_stdin_channel(),
             width,
@@ -41,7 +41,7 @@ impl Default for Game {
                 border_types: BorderTypes::default(),
             },
             worm: Worm::new(width / 2, height / 2, 4),
-            fruits: vec![Fruit { pos: (5, 14) }],
+            fruits: vec![Fruit { pos: (50, 14) }],
         }
     }
 }
@@ -56,7 +56,7 @@ impl Game {
             // Read input (if any)
             self.draw();
             self.handle_input();
-            self.worm.move_forward();
+            self.update_game_state();
             // If a key was pressed
             thread::sleep(time::Duration::from_millis(1000 / self.fps));
             self.frame_count += 1;
@@ -85,6 +85,15 @@ impl Game {
             Key::Char('s') => self.worm.current_direction = MoveDirection::Down,
             Key::Char('d') => self.worm.current_direction = MoveDirection::Right,
             _ => {}
+        }
+    }
+
+    fn update_game_state(&mut self) {
+        self.worm.move_forward();
+        // Check if the worm's head is on top of a fruit
+        if self.worm.segments[0] == self.fruits[0].pos {
+            self.worm.grow();
+            self.fruits[0].randomize_pos(self.width, self.height);
         }
     }
 }

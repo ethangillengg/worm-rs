@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::io::{stdout, Write};
 
 use termion::{
@@ -162,6 +163,15 @@ impl Entity for Board {
 pub struct Fruit {
     pub pos: (u16, u16),
 }
+impl Fruit {
+    pub fn randomize_pos(&mut self, width: u16, height: u16) {
+        self.pos = (
+            rand::thread_rng().gen_range(1..width),
+            rand::thread_rng().gen_range(1..height),
+        );
+    }
+}
+
 impl Entity for Fruit {
     fn draw(&mut self) {
         print!("{}", Goto(self.pos.0, self.pos.1));
