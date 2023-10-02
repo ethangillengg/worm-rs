@@ -5,7 +5,6 @@ use std::{
     thread, time,
 };
 use termion::{
-    clear,
     cursor::{Goto, Show},
     event::Key,
     input::TermRead,
@@ -73,7 +72,8 @@ impl Game {
     }
 
     fn handle_input(&mut self) {
-        let key = self.stdin_channel.try_recv().unwrap_or(Key::Null); //No input found
+        // Get the most recently pressed key
+        let key = self.stdin_channel.try_iter().last().unwrap_or(Key::Null);
         match key {
             Key::Char('q') => {
                 print!("{}{}", Show, Goto(0, 0));
@@ -99,6 +99,9 @@ fn spawn_stdin_channel() -> mpsc::Receiver<Key> {
         match keys.next() {
             Some(key) => {
                 tx.send(key.unwrap()).unwrap();
+
+                // let mut buffer = String::new();
+                // stdin.read_to_string(&mut buffer).unwrap();
             }
             None => {}
         }
