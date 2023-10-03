@@ -125,7 +125,7 @@ impl Entity for Worm {
             }
             None => {}
         }
-        write!(stdout(), "{}", color::Fg(color::Reset)).unwrap();
+        print!("{}", color::Fg(color::Reset));
         stdout().flush().unwrap();
     }
 }

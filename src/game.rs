@@ -5,15 +5,24 @@ use std::{
     process::exit,
     sync::mpsc,
     thread,
-    time::{self, Duration, Instant},
+    time::{Duration, Instant},
 };
 use termion::{
-    cursor::{Goto, Show},
+    color::{self, Color},
+    cursor::{Down, Goto, Show},
     event::Key,
     input::TermRead,
 };
 
 use crate::entity::{Board, BorderTypes, Entity, Fruit, MoveDirection, Worm};
+
+#[derive(Debug)]
+pub enum GameStatus {
+    Playing,
+    Paused,
+    Lost,
+    Won,
+}
 
 pub struct Game {
     pub fps: u64,
@@ -24,6 +33,7 @@ pub struct Game {
     pub board: Board,
     pub worm: Worm,
     pub fruits: Vec<Fruit>,
+    pub status: GameStatus,
 }
 
 impl Default for Game {
@@ -33,9 +43,8 @@ impl Default for Game {
         let height = term_size.1 - 2;
         // let width: u16 = 60;
         // let height: u16 = 30;
-        let fruit_count: u16 = 1000;
 
-        let mut game = Game {
+        Game {
             fps: 36,
             frame_count: 0,
             stdin_channel: spawn_stdin_channel(),
@@ -48,11 +57,8 @@ impl Default for Game {
             },
             worm: Worm::new(5, 2, 4),
             fruits: Vec::new(),
-        };
-
-        game.regenerate_fruits(fruit_count).unwrap();
-
-        return game;
+            status: GameStatus::Playing,
+        }
     }
 }
 
@@ -62,7 +68,47 @@ impl Game {
     }
 
     pub fn start(&mut self) {
-        //Render loop
+        print!("{}", termion::clear::All);
+        stdout().flush().unwrap();
+
+        self.status = GameStatus::Playing;
+        self.worm = Worm::new(5, 2, 4);
+        self.regenerate_fruits(1300).unwrap();
+
+        self.game_loop();
+        self.win_loop();
+    }
+
+    pub fn quit(&mut self) {
+        print!("{}{}", Show, Goto(0, 0));
+        stdout().flush().unwrap();
+        exit(0);
+    }
+
+    pub fn win_loop(&mut self) {
+        let crown = format!("{}󰆥{}", color::Fg(color::Yellow), color::Fg(color::Reset));
+        let win_msg = "YOU WON!!";
+
+        let w_offset: u16 = (self.width - u16::try_from(win_msg.len()).unwrap_or(0)) / 2;
+        let mut h_offset = (self.height) / 2;
+
+        print!("{}{}", termion::clear::All, Goto(w_offset, h_offset));
+        print!("{} {}", crown, win_msg);
+        h_offset += 3;
+
+        print!("{}press q to quit", Goto(w_offset, h_offset));
+        h_offset += 2;
+
+        print!("{}press r to retry", Goto(w_offset, h_offset));
+        stdout().flush().unwrap();
+
+        while let GameStatus::Won = self.status {
+            self.handle_input();
+            thread::sleep(Duration::from_millis(1000 / self.fps));
+        }
+    }
+
+    pub fn game_loop(&mut self) {
         let mut last_frame_time: Instant;
         let mut elapsed: Duration = Duration::from_millis(0);
         let mut sleep_duration: Duration = Duration::from_millis(0);
@@ -73,17 +119,17 @@ impl Game {
             fruit.draw();
         }
 
-        loop {
+        //Render loop
+        while let GameStatus::Playing = self.status {
             last_frame_time = Instant::now();
 
             self.draw();
-
             self.handle_input();
             self.update_game_state();
             // self.sleep_inconsistent_random();
 
+            print!("{} State: {:?} ", Goto(3, 1), self.status);
             print!("{} Elapsed: {} ", Goto(24, 1), elapsed.as_millis());
-            stdout().flush().unwrap();
             print!("{} Slept: {} ", Goto(38, 1), sleep_duration.as_millis());
             stdout().flush().unwrap();
 
@@ -94,7 +140,8 @@ impl Game {
             self.frame_count += 1;
         }
     }
-    pub fn sleep_inconsistent_random(&self) {
+
+    fn sleep_inconsistent_random(&self) {
         let ms_to_sleep = rand::thread_rng().gen_range(0..(900 / self.fps));
         print!("{} Random Sleep: {} ", Goto(3, 1), ms_to_sleep);
         stdout().flush().unwrap();
@@ -102,26 +149,27 @@ impl Game {
         thread::sleep(Duration::from_millis(ms_to_sleep));
     }
 
-    pub fn draw(&mut self) {
-        // self.board.draw();
+    fn draw(&mut self) {
         self.worm.draw();
-
-        // print!("{} Length: {} ", Goto(3, 1), self.worm.length());
     }
 
     fn handle_input(&mut self) {
         // Get the most recently pressed key
         let key = self.stdin_channel.try_iter().last().unwrap_or(Key::Null);
-        match key {
-            Key::Char('q') => {
-                print!("{}{}", Show, Goto(0, 0));
-                stdout().flush().unwrap();
-                exit(0);
-            }
-            Key::Char('w') => self.worm.try_set_direction(MoveDirection::Up),
-            Key::Char('a') => self.worm.try_set_direction(MoveDirection::Left),
-            Key::Char('s') => self.worm.try_set_direction(MoveDirection::Down),
-            Key::Char('d') => self.worm.try_set_direction(MoveDirection::Right),
+        match self.status {
+            GameStatus::Playing => match key {
+                Key::Char('q') => self.quit(),
+                Key::Char('w') => self.worm.try_set_direction(MoveDirection::Up),
+                Key::Char('a') => self.worm.try_set_direction(MoveDirection::Left),
+                Key::Char('s') => self.worm.try_set_direction(MoveDirection::Down),
+                Key::Char('d') => self.worm.try_set_direction(MoveDirection::Right),
+                _ => {}
+            },
+            GameStatus::Won => match key {
+                Key::Char('q') => self.quit(),
+                Key::Char('r') => self.start(),
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -133,8 +181,14 @@ impl Game {
             if self.worm.segments[0] == self.fruits[i].pos {
                 self.worm.grow();
                 // Set the fruit's position to a new random position
-                self.fruits[i].pos = self.get_random_unoccupied_pos().unwrap();
-                self.fruits[i].draw();
+
+                match self.get_random_unoccupied_pos() {
+                    Ok(pos) => {
+                        self.fruits[i].pos = pos;
+                        self.fruits[i].draw();
+                    }
+                    Err(_) => self.status = GameStatus::Won,
+                }
             }
         }
     }
@@ -147,19 +201,7 @@ impl Game {
             .collect()
     }
 
-    fn regenerate_fruits(&mut self, fruit_count: u16) -> Result<(), String> {
-        self.fruits = Vec::<Fruit>::new();
-
-        for _ in 0..fruit_count {
-            self.fruits.push(Fruit {
-                pos: self.get_random_unoccupied_pos()?,
-            });
-        }
-
-        return Ok(());
-    }
-
-    pub fn get_random_unoccupied_pos(&self) -> Result<(u16, u16), String> {
+    fn get_random_unoccupied_pos(&self) -> Result<(u16, u16), String> {
         let mut rng = rand::thread_rng();
 
         let occupied_positions = self.get_occupied_positions();
@@ -180,6 +222,18 @@ impl Game {
                 return Ok(pos);
             }
         }
+    }
+
+    fn regenerate_fruits(&mut self, fruit_count: u16) -> Result<(), String> {
+        self.fruits = Vec::<Fruit>::new();
+
+        for _ in 0..fruit_count {
+            self.fruits.push(Fruit {
+                pos: self.get_random_unoccupied_pos()?,
+            });
+        }
+
+        return Ok(());
     }
 }
 
