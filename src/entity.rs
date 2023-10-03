@@ -6,7 +6,7 @@ use std::{
 
 use termion::{
     color,
-    cursor::{Down, Goto, Left},
+    cursor::{Down, Goto, Left, Right},
 };
 
 use crate::game::Game;
@@ -22,7 +22,7 @@ pub trait Entity {
         print!("{}", Left(u16::MAX));
         stdout().flush().unwrap();
     }
-    fn goto_next_line(&self) {
+    fn goto_next_line_start(&self) {
         print!("{}", Left(u16::MAX));
         print!("{}", Down(1));
         stdout().flush().unwrap();
@@ -32,6 +32,7 @@ pub trait Entity {
 #[derive(Debug)]
 pub struct Worm {
     pub segments: Vec<(u16, u16)>,
+    pub old_tail: Option<(u16, u16)>,
     current_direction: MoveDirection,
 }
 
@@ -49,6 +50,7 @@ impl Worm {
         Worm {
             segments,
             current_direction: MoveDirection::Right,
+            old_tail: None,
         }
     }
 
@@ -91,6 +93,7 @@ impl Worm {
     }
 
     pub fn move_forward(&mut self) {
+        self.old_tail = Some(self.tail().clone());
         for i in (1..=self.segments.len() - 1).rev() {
             let next_seg = self.segments[i - 1];
             self.segments[i].0 = next_seg.0;
@@ -109,10 +112,18 @@ impl Worm {
 
 impl Entity for Worm {
     fn draw(&mut self) {
-        write!(stdout(), "{}", color::Fg(color::LightMagenta)).unwrap();
+        write!(stdout(), "{}", color::Fg(color::Magenta)).unwrap();
         for pos in &mut self.segments {
             print!("{}", Goto(pos.0, pos.1));
-            print!("◉");
+            print!("");
+            // print!("◉");
+        }
+        match self.old_tail {
+            Some(pos) => {
+                print!("{}", Goto(pos.0, pos.1));
+                print!(" ");
+            }
+            None => {}
         }
         write!(stdout(), "{}", color::Fg(color::Reset)).unwrap();
         stdout().flush().unwrap();
@@ -160,14 +171,18 @@ impl Entity for Board {
             bt.top_right
         );
         self.goto_line_start();
-        self.goto_next_line();
+        // self.goto_next_line_start();
 
         //Body
         for _ in 0..self.height {
-            print!("{}", bt.vertical);
-            print!("{}", " ".repeat((self.width).into()));
-            print!("{}", bt.vertical);
-            self.goto_next_line();
+            print!(
+                "{}{}{}{}{}",
+                Left(u16::MAX),
+                Down(1),
+                bt.vertical,
+                Right(self.width),
+                bt.vertical,
+            );
         }
 
         // Bottom Border

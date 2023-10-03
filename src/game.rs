@@ -31,12 +31,12 @@ impl Default for Game {
         let term_size = termion::terminal_size().unwrap();
         let width = term_size.0 - 2;
         let height = term_size.1 - 2;
-        // let width: u16 = 6;
-        // let height: u16 = 6;
-        let fruit_count: u16 = 32;
+        // let width: u16 = 60;
+        // let height: u16 = 30;
+        let fruit_count: u16 = 1000;
 
         let mut game = Game {
-            fps: 20,
+            fps: 36,
             frame_count: 0,
             stdin_channel: spawn_stdin_channel(),
             width,
@@ -63,23 +63,30 @@ impl Game {
 
     pub fn start(&mut self) {
         //Render loop
-        let mut last_frame_time = Instant::now();
+        let mut last_frame_time: Instant;
         let mut elapsed: Duration = Duration::from_millis(0);
         let mut sleep_duration: Duration = Duration::from_millis(0);
+
+        // Draw all the entities initially
+        self.board.draw();
+        for fruit in &mut self.fruits {
+            fruit.draw();
+        }
+
         loop {
             last_frame_time = Instant::now();
 
             self.draw();
+
             self.handle_input();
             self.update_game_state();
+            // self.sleep_inconsistent_random();
+
             print!("{} Elapsed: {} ", Goto(24, 1), elapsed.as_millis());
             stdout().flush().unwrap();
             print!("{} Slept: {} ", Goto(38, 1), sleep_duration.as_millis());
             stdout().flush().unwrap();
-            self.sleep_inconsistent_random();
 
-            // thread::sleep(Duration::from_millis(1000 / self.fps));
-            // Measure elapsed time since last frame
             elapsed = Instant::now() - last_frame_time;
             sleep_duration = Duration::from_millis(1000 / self.fps) - elapsed;
 
@@ -96,14 +103,10 @@ impl Game {
     }
 
     pub fn draw(&mut self) {
-        self.board.draw();
+        // self.board.draw();
         self.worm.draw();
 
         // print!("{} Length: {} ", Goto(3, 1), self.worm.length());
-
-        for fruit in &mut self.fruits {
-            fruit.draw();
-        }
     }
 
     fn handle_input(&mut self) {
@@ -131,6 +134,7 @@ impl Game {
                 self.worm.grow();
                 // Set the fruit's position to a new random position
                 self.fruits[i].pos = self.get_random_unoccupied_pos().unwrap();
+                self.fruits[i].draw();
             }
         }
     }
@@ -145,11 +149,13 @@ impl Game {
 
     fn regenerate_fruits(&mut self, fruit_count: u16) -> Result<(), String> {
         self.fruits = Vec::<Fruit>::new();
+
         for _ in 0..fruit_count {
             self.fruits.push(Fruit {
                 pos: self.get_random_unoccupied_pos()?,
             });
         }
+
         return Ok(());
     }
 
