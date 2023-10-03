@@ -1,10 +1,15 @@
 use rand::Rng;
-use std::io::{stdout, Write};
+use std::{
+    collections::HashSet,
+    io::{stdout, Write},
+};
 
 use termion::{
     color,
     cursor::{Down, Goto, Left},
 };
+
+use crate::game::Game;
 
 pub trait Entity {
     fn draw(&mut self);
@@ -110,9 +115,6 @@ impl Entity for Worm {
             print!("◉");
         }
         write!(stdout(), "{}", color::Fg(color::Reset)).unwrap();
-
-        print!("{}Length:{}", Goto(2, 2), self.length());
-        self.goto_origin();
         stdout().flush().unwrap();
     }
 }
@@ -154,16 +156,16 @@ impl Entity for Board {
         print!(
             "{}{}{}",
             bt.top_left,
-            bt.horizontal.repeat(self.width.into()),
+            bt.horizontal.repeat((self.width).into()),
             bt.top_right
         );
         self.goto_line_start();
         self.goto_next_line();
 
         //Body
-        for _ in 0..self.height.into() {
+        for _ in 0..self.height {
             print!("{}", bt.vertical);
-            print!("{}", " ".repeat(self.width.into()));
+            print!("{}", " ".repeat((self.width).into()));
             print!("{}", bt.vertical);
             self.goto_next_line();
         }
@@ -172,7 +174,7 @@ impl Entity for Board {
         print!(
             "{}{}{}",
             bt.bottom_left,
-            bt.horizontal.repeat(self.width.into()),
+            bt.horizontal.repeat((self.width).into()),
             bt.bottom_right
         );
         stdout().flush().unwrap();
@@ -182,12 +184,10 @@ impl Entity for Board {
 pub struct Fruit {
     pub pos: (u16, u16),
 }
+
 impl Fruit {
-    pub fn randomize_pos(&mut self, width: u16, height: u16) {
-        self.pos = (
-            rand::thread_rng().gen_range(1..width),
-            rand::thread_rng().gen_range(1..height),
-        );
+    pub fn new() -> Fruit {
+        Fruit { pos: (0, 0) }
     }
 }
 
