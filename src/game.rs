@@ -8,8 +8,8 @@ use std::{
     time::{Duration, Instant},
 };
 use termion::{
-    color::{self, Color},
-    cursor::{Down, Goto, Show},
+    color::{self},
+    cursor::{Goto, Show},
     event::Key,
     input::TermRead,
 };
@@ -73,10 +73,15 @@ impl Game {
 
         self.status = GameStatus::Playing;
         self.worm = Worm::new(5, 2, 4);
-        self.regenerate_fruits(1300).unwrap();
+        self.regenerate_fruits(10).unwrap();
 
-        self.game_loop();
-        self.win_loop();
+        loop {
+            match self.status {
+                GameStatus::Playing => self.game_running_loop(),
+                GameStatus::Won | GameStatus::Lost => self.game_finished_loop(),
+                _ => {}
+            }
+        }
     }
 
     pub fn quit(&mut self) {
@@ -85,15 +90,29 @@ impl Game {
         exit(0);
     }
 
-    pub fn win_loop(&mut self) {
-        let crown = format!("{}󰆥{}", color::Fg(color::Yellow), color::Fg(color::Reset));
-        let win_msg = "YOU WON!!";
+    pub fn game_finished_loop(&mut self) {
+        let msg: &str;
+        let icon: String;
+        match self.status {
+            GameStatus::Won => {
+                msg = "You Won!!";
+                icon = format!("{}󰆥{}", color::Fg(color::Yellow), color::Fg(color::Reset));
+            }
+            _ => {
+                icon = format!(
+                    "{}󰚌{}",
+                    color::Fg(color::LightWhite),
+                    color::Fg(color::Reset)
+                );
+                msg = "You Died...";
+            }
+        }
 
-        let w_offset: u16 = (self.width - u16::try_from(win_msg.len()).unwrap_or(0)) / 2;
+        let w_offset: u16 = (self.width - u16::try_from(msg.len()).unwrap_or(0)) / 2;
         let mut h_offset = (self.height) / 2;
 
         print!("{}{}", termion::clear::All, Goto(w_offset, h_offset));
-        print!("{} {}", crown, win_msg);
+        print!("{} {}", icon, msg);
         h_offset += 3;
 
         print!("{}press q to quit", Goto(w_offset, h_offset));
@@ -102,13 +121,13 @@ impl Game {
         print!("{}press r to retry", Goto(w_offset, h_offset));
         stdout().flush().unwrap();
 
-        while let GameStatus::Won = self.status {
+        while let GameStatus::Won | GameStatus::Lost = self.status {
             self.handle_input();
             thread::sleep(Duration::from_millis(1000 / self.fps));
         }
     }
 
-    pub fn game_loop(&mut self) {
+    pub fn game_running_loop(&mut self) {
         let mut last_frame_time: Instant;
         let mut elapsed: Duration = Duration::from_millis(0);
         let mut sleep_duration: Duration = Duration::from_millis(0);
@@ -126,7 +145,6 @@ impl Game {
             self.draw();
             self.handle_input();
             self.update_game_state();
-            // self.sleep_inconsistent_random();
 
             print!("{} State: {:?} ", Goto(3, 1), self.status);
             print!("{} Elapsed: {} ", Goto(24, 1), elapsed.as_millis());
@@ -139,14 +157,6 @@ impl Game {
             thread::sleep(sleep_duration);
             self.frame_count += 1;
         }
-    }
-
-    fn sleep_inconsistent_random(&self) {
-        let ms_to_sleep = rand::thread_rng().gen_range(0..(900 / self.fps));
-        print!("{} Random Sleep: {} ", Goto(3, 1), ms_to_sleep);
-        stdout().flush().unwrap();
-
-        thread::sleep(Duration::from_millis(ms_to_sleep));
     }
 
     fn draw(&mut self) {
@@ -165,7 +175,7 @@ impl Game {
                 Key::Char('d') => self.worm.try_set_direction(MoveDirection::Right),
                 _ => {}
             },
-            GameStatus::Won => match key {
+            GameStatus::Won | GameStatus::Lost => match key {
                 Key::Char('q') => self.quit(),
                 Key::Char('r') => self.start(),
                 _ => {}
@@ -176,6 +186,7 @@ impl Game {
 
     fn update_game_state(&mut self) {
         self.worm.move_forward();
+
         // Check if the worm's head is on top of a fruit
         for i in 0..self.fruits.len() {
             if self.worm.segments[0] == self.fruits[i].pos {
@@ -186,9 +197,30 @@ impl Game {
                     Ok(pos) => {
                         self.fruits[i].pos = pos;
                         self.fruits[i].draw();
+                        return;
                     }
-                    Err(_) => self.status = GameStatus::Won,
+                    Err(_) => {
+                        self.status = GameStatus::Won;
+                        return;
+                    }
                 }
+            }
+        }
+        // Check if the worm has collided with the border
+        if self.worm.segments[0].0 < 2
+            || self.worm.segments[0].0 > self.width + 1
+            || self.worm.segments[0].1 < 2
+            || self.worm.segments[0].1 > self.height + 1
+        {
+            self.status = GameStatus::Lost;
+            return;
+        }
+
+        // Check if the worm has collided with itself
+        for i in 1..self.worm.segments.len() {
+            if self.worm.segments[0] == self.worm.segments[i] {
+                self.status = GameStatus::Lost;
+                return;
             }
         }
     }
