@@ -1,22 +1,32 @@
-use std::io::stdout;
+use clap::Parser;
 
-use termion::cursor::Hide;
-use termion::raw::IntoRawMode;
-use termion::screen::IntoAlternateScreen;
-use termion::{self, clear};
+use crate::game::GameSettings;
 
 pub mod entity;
 pub mod game;
 
+/// Terminal worm game in rust!
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Number of fruit
+    #[arg(short, long)]
+    fruit: u16,
+
+    /// Starting length of the worm
+    #[arg(short, long, default_value_t = 4)]
+    length: u16,
+}
+
 fn main() {
-    // Set terminal to raw mode to allow reading stdin one key at a time
-    println!("{}{}", clear::All, Hide);
-    let mut stdout = stdout()
-        .lock()
-        .into_raw_mode()
-        .unwrap()
-        .into_alternate_screen()
-        .unwrap();
-    let mut game = game::Game::new();
+    let args = Args::parse();
+
+    let game_settings = GameSettings {
+        fruit_count: args.fruit,
+        worm_length: args.length,
+    };
+
+    let mut game = game::Game::new(game_settings);
+
     game.start();
 }

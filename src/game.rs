@@ -1,7 +1,7 @@
 use rand::Rng;
 use std::{
     collections::HashSet,
-    io::{stdin, stdout, Write},
+    io::{stdin, stdout, StdoutLock, Write},
     process::exit,
     sync::mpsc,
     thread,
@@ -12,6 +12,8 @@ use termion::{
     cursor::{Goto, Show},
     event::Key,
     input::TermRead,
+    raw::{IntoRawMode, RawTerminal},
+    screen::{AlternateScreen, IntoAlternateScreen},
 };
 
 use crate::entity::{Board, BorderTypes, Entity, Fruit, MoveDirection, Worm};
@@ -24,20 +26,30 @@ pub enum GameStatus {
     Won,
 }
 
-pub struct Game {
+pub struct GameSettings {
+    pub fruit_count: u16,
+    pub worm_length: u16,
+}
+
+pub struct Game<'a> {
     pub fps: u64,
     pub frame_count: u32,
-    pub stdin_channel: mpsc::Receiver<Key>,
     pub width: u16,
     pub height: u16,
     pub board: Board,
     pub worm: Worm,
     pub fruits: Vec<Fruit>,
     pub status: GameStatus,
+    pub settings: GameSettings,
+
+    stdin_channel: mpsc::Receiver<Key>,
+    // need this for the lifetime, the lock lasts until it goes out of scope
+    //TODO better solution??
+    stdout_lock: AlternateScreen<RawTerminal<StdoutLock<'a>>>,
 }
 
-impl Default for Game {
-    fn default() -> Self {
+impl Game<'_> {
+    pub fn new<'a>(settings: GameSettings) -> Game<'a> {
         let term_size = termion::terminal_size().unwrap();
         let width = term_size.0 - 2;
         let height = term_size.1 - 2;
@@ -45,7 +57,6 @@ impl Default for Game {
         Game {
             fps: 30,
             frame_count: 0,
-            stdin_channel: spawn_stdin_channel(),
             width,
             height,
             board: Board {
@@ -53,25 +64,22 @@ impl Default for Game {
                 height,
                 border_types: BorderTypes::default(),
             },
-            worm: Worm::new(5, 2, 4),
+            worm: Worm::new(5, 2, settings.worm_length),
             fruits: Vec::new(),
             status: GameStatus::Playing,
-        }
-    }
-}
+            settings,
 
-impl Game {
-    pub fn new() -> Game {
-        Game::default()
+            stdin_channel: spawn_stdin_channel(),
+            stdout_lock: get_stdout_raw_lock(),
+        }
     }
 
     pub fn start(&mut self) {
-        print!("{}", termion::clear::All);
-        stdout().flush().unwrap();
+        println!("{}{}", termion::clear::All, termion::cursor::Hide);
 
         self.status = GameStatus::Playing;
-        self.worm = Worm::new(5, 2, 4);
-        self.regenerate_fruits(10).unwrap();
+        self.worm = Worm::new(5, 2, self.settings.worm_length);
+        self.regenerate_fruits(self.settings.fruit_count).unwrap();
 
         loop {
             match self.status {
@@ -189,8 +197,8 @@ impl Game {
         for i in 0..self.fruits.len() {
             if self.worm.segments[0] == self.fruits[i].pos {
                 self.worm.grow();
-                // Set the fruit's position to a new random position
 
+                // Set the fruit's position to a new random position
                 match self.get_random_unoccupied_pos() {
                     Ok(pos) => {
                         self.fruits[i].pos = pos;
@@ -257,6 +265,10 @@ impl Game {
     fn regenerate_fruits(&mut self, fruit_count: u16) -> Result<(), String> {
         self.fruits = Vec::<Fruit>::new();
 
+        //TODO This algo is BAD, try another approach:
+        // 1. iterate through all positions on the board
+        // 2. give each pos a chance to spawn a fruit based on (# fruit remaining to place/# of empty positions)
+        // BINGO
         for _ in 0..fruit_count {
             self.fruits.push(Fruit {
                 pos: self.get_random_unoccupied_pos()?,
@@ -279,4 +291,14 @@ fn spawn_stdin_channel() -> mpsc::Receiver<Key> {
         }
     });
     rx
+}
+
+fn get_stdout_raw_lock<'a>() -> AlternateScreen<RawTerminal<StdoutLock<'a>>> {
+    // Set terminal to raw mode to allow reading stdin one key at a time
+    stdout()
+        .lock()
+        .into_raw_mode()
+        .unwrap()
+        .into_alternate_screen()
+        .unwrap()
 }
