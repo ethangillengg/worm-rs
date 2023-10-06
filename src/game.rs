@@ -2,7 +2,6 @@ use rand::Rng;
 use std::{
     collections::HashSet,
     io::{stdin, stdout, StdoutLock, Write},
-    process::exit,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -21,17 +20,47 @@ use crate::{
     GameSettings,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum GameStatus {
     Playing,
     Paused,
     Lost,
     Won,
+    ShowingStats,
+    Exiting,
+}
+pub struct RenderStats {
+    pub frame_count: u32,
+    pub total_render_duration: Duration,
+}
+impl RenderStats {
+    pub fn new() -> RenderStats {
+        RenderStats {
+            frame_count: 0,
+            total_render_duration: Duration::from_millis(0),
+        }
+    }
+
+    pub fn avg_frame_time(&self) -> Duration {
+        self.total_render_duration / self.frame_count
+    }
+
+    pub fn print_stats(&self) {
+        println!("{}", termion::clear::All);
+        println!("{}", Goto(1, 1));
+        println!("Total Frames Rendered: {}", self.frame_count);
+        println!("{}", Goto(1, 2));
+        println!(
+            "Average Frame Time: {}μs",
+            self.avg_frame_time().as_micros()
+        );
+        println!("{}", Goto(1, 3));
+        thread::sleep(Duration::from_millis(1000));
+    }
 }
 
 pub struct Game<'a> {
     pub fps: u64,
-    pub frame_count: u32,
     pub width: u16,
     pub height: u16,
     pub board: Board,
@@ -39,6 +68,7 @@ pub struct Game<'a> {
     pub fruits: Vec<Fruit>,
     pub status: GameStatus,
     pub settings: GameSettings,
+    pub render_stats: RenderStats,
 
     stdin_channel: mpsc::Receiver<Key>,
     // need this for the lifetime, the lock lasts until it goes out of scope
@@ -52,9 +82,8 @@ impl Game<'_> {
         let width = term_size.0 - 2;
         let height = term_size.1 - 2;
 
-        Game {
+        let mut game = Game {
             fps: 30,
-            frame_count: 0,
             width,
             height,
             board: Board {
@@ -67,9 +96,15 @@ impl Game<'_> {
             status: GameStatus::Playing,
             settings,
 
+            render_stats: RenderStats::new(),
             stdin_channel: spawn_stdin_channel(),
             stdout_lock: get_stdout_raw_lock(),
+        };
+
+        if ((height * width - game.settings.worm_length) as u64) < game.settings.fruit_count {
+            game.quit();
         }
+        return game;
     }
 
     pub fn start(&mut self) {
@@ -83,15 +118,25 @@ impl Game<'_> {
             match self.status {
                 GameStatus::Playing => self.game_running_loop(),
                 GameStatus::Won | GameStatus::Lost => self.game_finished_loop(),
+                GameStatus::Exiting => break,
                 _ => {}
             }
         }
     }
 
     pub fn quit(&mut self) {
+        if self.settings.stats {
+            self.status = GameStatus::ShowingStats;
+            self.render_stats.print_stats();
+            while self.status != GameStatus::Exiting {
+                self.handle_input();
+                thread::sleep(Duration::from_millis(1000 / self.fps));
+            }
+        }
+
         print!("{}{}", Show, Goto(0, 0));
         stdout().flush().unwrap();
-        exit(0);
+        self.status = GameStatus::Exiting;
     }
 
     pub fn game_finished_loop(&mut self) {
@@ -159,7 +204,8 @@ impl Game<'_> {
             sleep_duration = Duration::from_millis(1000 / self.fps) - elapsed;
 
             thread::sleep(sleep_duration);
-            self.frame_count += 1;
+            self.render_stats.frame_count += 1;
+            self.render_stats.total_render_duration += elapsed;
         }
     }
 
@@ -184,6 +230,10 @@ impl Game<'_> {
                 Key::Char('r') => self.start(),
                 _ => {}
             },
+            GameStatus::ShowingStats => match key {
+                Key::Char('q') => self.status = GameStatus::Exiting,
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -196,6 +246,8 @@ impl Game<'_> {
             if self.worm.segments[0] == self.fruits[i].pos {
                 self.worm.grow();
 
+                let o = self.get_occupied_positions();
+
                 // Set the fruit's position to a new random position
                 match self.get_random_unoccupied_pos() {
                     Ok(pos) => {
@@ -203,6 +255,7 @@ impl Game<'_> {
                         self.fruits[i].draw();
                         return;
                     }
+                    // Board was full
                     Err(_) => {
                         self.status = GameStatus::Won;
                         return;
@@ -237,45 +290,23 @@ impl Game<'_> {
             .collect()
     }
 
-    fn get_random_unoccupied_pos(&self) -> Result<(u16, u16), String> {
-        let mut rng = rand::thread_rng();
-
-        let occupied_positions = self.get_occupied_positions();
-        let h_range = 2..self.height + 2;
-        let w_range = 2..self.width + 2;
-
-        if occupied_positions.len() >= (self.width * self.height).into() {
-            return Err(String::from("No free positions available"));
-        }
-
-        loop {
-            let pos = (
-                rng.gen_range(w_range.clone()),
-                rng.gen_range(h_range.clone()),
-            );
-
-            if !&occupied_positions.contains(&pos) {
-                return Ok(pos);
-            }
-        }
-    }
-
     fn regenerate_fruits(&mut self) -> Result<(), String> {
+        // clear out existing fruits
         self.fruits = Vec::<Fruit>::new();
 
-        //TODO This algo is BAD, try another approach:
-        // 1. iterate through all positions on the board
-        // 2. give each pos a chance to spawn a fruit based on (# fruit remaining to place/# of empty positions)
-        // BINGO
-        // for _ in 0..fruit_count {
+        // //OLD SLOW ALGORITHM
+        // for _ in 0..self.settings.fruit_count {
+        //     // make a new fruit at a random position that is not occupied
         //     self.fruits.push(Fruit {
         //         pos: self.get_random_unoccupied_pos()?,
         //     });
         // }
+        // return Ok(());
 
         // 1. iterate through all positions on the board
         // 2. give each pos a chance to spawn a fruit based on (# fruit remaining to place/# of empty positions)
         let mut index = 0; // represent curent postion in 1d, iterate col then row
+        let occupied_positions = self.get_occupied_positions();
 
         // offset range by one to avoid division by 0 in the gen_bool call
         for fruit_remaining in (1..self.settings.fruit_count + 1).rev() {
@@ -288,14 +319,43 @@ impl Game<'_> {
                 // chance to spawn a fruit based on num remaining, and number of positions left
                 if rng.gen_bool(fruit_remaining as f64 / (self.width * self.height - index) as f64)
                 {
-                    self.fruits.push(Fruit {
-                        pos: (pos.0 + 2, pos.1 + 2),
-                    });
-                    break;
+                    if occupied_positions.contains(&pos) {
+                        continue;
+                    } else {
+                        self.fruits.push(Fruit {
+                            pos: (pos.0 + 2, pos.1 + 2),
+                        });
+                        break;
+                    }
                 }
             }
         }
         return Ok(());
+    }
+
+    fn get_random_unoccupied_pos(&self) -> Result<(u16, u16), String> {
+        let mut rng = rand::thread_rng();
+
+        let occupied_positions = self.get_occupied_positions();
+        let h_range = 2..self.height + 2;
+        let w_range = 2..self.width + 2;
+
+        // error if board is full already
+        if occupied_positions.len() >= (self.width * self.height).into() {
+            return Err(String::from("Board is full"));
+        }
+
+        // loop through rng until we get a position that is free
+        loop {
+            let pos = (
+                rng.gen_range(w_range.clone()),
+                rng.gen_range(h_range.clone()),
+            );
+
+            if !&occupied_positions.contains(&pos) {
+                return Ok(pos);
+            }
+        }
     }
 }
 

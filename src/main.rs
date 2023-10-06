@@ -15,19 +15,13 @@ pub struct GameSettings {
     #[arg(short, long, default_value_t = 4)]
     worm_length: u16,
 
-    /// Quit after first frame drawn
+    /// Print stats about render speed on exit
     #[arg(short, long, default_value = "false")]
-    test_draw_speed: bool,
+    stats: bool,
 }
 
 fn main() {
     let game_settings = GameSettings::parse();
-
-    // = GameSettings {
-    //         fruit_count: args.fruit,
-    //         worm_length: args.length,
-    //     };
-
     let mut game = game::Game::new(game_settings);
 
     game.start();
