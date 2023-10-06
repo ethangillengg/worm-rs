@@ -16,7 +16,10 @@ use termion::{
     screen::{AlternateScreen, IntoAlternateScreen},
 };
 
-use crate::entity::{Board, BorderTypes, Entity, Fruit, MoveDirection, Worm};
+use crate::{
+    entity::{Board, BorderTypes, Entity, Fruit, MoveDirection, Worm},
+    GameSettings,
+};
 
 #[derive(Debug)]
 pub enum GameStatus {
@@ -24,11 +27,6 @@ pub enum GameStatus {
     Paused,
     Lost,
     Won,
-}
-
-pub struct GameSettings {
-    pub fruit_count: u64,
-    pub worm_length: u16,
 }
 
 pub struct Game<'a> {

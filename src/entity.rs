@@ -1,15 +1,9 @@
-use rand::Rng;
-use std::{
-    collections::HashSet,
-    io::{stdout, Write},
-};
+use std::io::{stdout, Write};
 
 use termion::{
     color,
     cursor::{Down, Goto, Left, Right},
 };
-
-use crate::game::Game;
 
 pub trait Entity {
     fn draw(&mut self);
