@@ -10,8 +10,8 @@ pub mod game;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Number of fruit
-    #[arg(short, long)]
-    fruit: u16,
+    #[arg(short, long, default_value_t = 5)]
+    fruit: u64,
 
     /// Starting length of the worm
     #[arg(short, long, default_value_t = 4)]

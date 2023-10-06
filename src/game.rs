@@ -27,7 +27,7 @@ pub enum GameStatus {
 }
 
 pub struct GameSettings {
-    pub fruit_count: u16,
+    pub fruit_count: u64,
     pub worm_length: u16,
 }
 
@@ -64,7 +64,7 @@ impl Game<'_> {
                 height,
                 border_types: BorderTypes::default(),
             },
-            worm: Worm::new(5, 2, settings.worm_length),
+            worm: Worm::new(5, 20, settings.worm_length),
             fruits: Vec::new(),
             status: GameStatus::Playing,
             settings,
@@ -78,8 +78,8 @@ impl Game<'_> {
         println!("{}{}", termion::clear::All, termion::cursor::Hide);
 
         self.status = GameStatus::Playing;
-        self.worm = Worm::new(5, 2, self.settings.worm_length);
-        self.regenerate_fruits(self.settings.fruit_count).unwrap();
+        self.worm = Worm::new(5, 20, self.settings.worm_length);
+        self.regenerate_fruits().unwrap();
 
         loop {
             match self.status {
@@ -262,19 +262,41 @@ impl Game<'_> {
         }
     }
 
-    fn regenerate_fruits(&mut self, fruit_count: u16) -> Result<(), String> {
+    fn regenerate_fruits(&mut self) -> Result<(), String> {
         self.fruits = Vec::<Fruit>::new();
 
         //TODO This algo is BAD, try another approach:
         // 1. iterate through all positions on the board
         // 2. give each pos a chance to spawn a fruit based on (# fruit remaining to place/# of empty positions)
         // BINGO
-        for _ in 0..fruit_count {
-            self.fruits.push(Fruit {
-                pos: self.get_random_unoccupied_pos()?,
-            });
-        }
+        // for _ in 0..fruit_count {
+        //     self.fruits.push(Fruit {
+        //         pos: self.get_random_unoccupied_pos()?,
+        //     });
+        // }
 
+        // 1. iterate through all positions on the board
+        // 2. give each pos a chance to spawn a fruit based on (# fruit remaining to place/# of empty positions)
+        let mut index = 0; // represent curent postion in 1d, iterate col then row
+
+        // offset range by one to avoid division by 0 in the gen_bool call
+        for fruit_remaining in (1..self.settings.fruit_count + 1).rev() {
+            let mut rng = rand::thread_rng();
+
+            loop {
+                index += 1;
+                let pos = (index % self.width, index / self.width);
+
+                // chance to spawn a fruit based on num remaining, and number of positions left
+                if rng.gen_bool(fruit_remaining as f64 / (self.width * self.height - index) as f64)
+                {
+                    self.fruits.push(Fruit {
+                        pos: (pos.0 + 2, pos.1 + 2),
+                    });
+                    break;
+                }
+            }
+        }
         return Ok(());
     }
 }
