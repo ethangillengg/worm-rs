@@ -152,6 +152,7 @@ impl Default for BorderTypes {
         }
     }
 }
+
 pub struct Board {
     pub border_types: BorderTypes,
     pub width: u16,

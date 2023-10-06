@@ -41,11 +41,9 @@ impl Default for Game {
         let term_size = termion::terminal_size().unwrap();
         let width = term_size.0 - 2;
         let height = term_size.1 - 2;
-        // let width: u16 = 60;
-        // let height: u16 = 30;
 
         Game {
-            fps: 36,
+            fps: 30,
             frame_count: 0,
             stdin_channel: spawn_stdin_channel(),
             width,
