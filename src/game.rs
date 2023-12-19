@@ -195,9 +195,7 @@ impl Game<'_> {
             self.handle_input();
             self.update_game_state();
 
-            print!("{} State: {:?} ", Goto(3, 1), self.status);
-            print!("{} Elapsed: {} ", Goto(24, 1), elapsed.as_millis());
-            print!("{} Slept: {} ", Goto(38, 1), sleep_duration.as_millis());
+            print!("{} Length: {} ", Goto(3, 1), self.worm.length());
             stdout().flush().unwrap();
 
             elapsed = Instant::now() - last_frame_time;
